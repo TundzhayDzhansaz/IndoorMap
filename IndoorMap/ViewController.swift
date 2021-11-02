@@ -158,8 +158,8 @@ class ViewController: UIViewController {
 		]
 		let hallway = IndoorMapUnit(coordinates: hallwayCoordinates, category: .hallway)
 		venue.units.append(hallway)
-		//let hallwayOverlay = UnitOverlay(unit: hallway)
-		//mapView.addOverlay(hallwayOverlay)
+		let hallwayOverlay = UnitOverlay(unit: hallway)
+		mapView.addOverlay(hallwayOverlay)
 		
 		let opening1 = IndoorMapOpening(
 			coordinate: CLLocationCoordinate2D(latitude: 51.52471357679181, longitude: -0.04063115374217572),
@@ -195,10 +195,21 @@ class ViewController: UIViewController {
 		venue.openings.append(opening5)
 		let opening5Overlay = OpeningOverlay(center: opening5.coordinate, radius: OpeningOverlay.standardSize)
 		mapView.addOverlay(opening5Overlay)
+    
+    
+
 		
 		let route = venue.findRoute(from: unit1, to: unit4)
 		let routeOverlay = RouteOverlay(coordinates: route, count: route.count)
 		mapView.addOverlay(routeOverlay)
+    
+    
+    //MARK: - Test to manuel draw
+    let sourceLocation = CLLocationCoordinate2D(latitude: 51.52471357679181, longitude: -0.04063115374217572)
+    let destinationLocation = CLLocationCoordinate2D(latitude: 51.52479274068589, longitude: -0.0405601982138011)
+    
+    createPath(sourceLocation: sourceLocation, destinationLocation: destinationLocation)
+    //showRouteOnMap(pickupCoordinate: sourceLocation, destinationCoordinate: destinationLocation)
 	}
 	
 	override func viewDidLayoutSubviews() {
@@ -206,6 +217,134 @@ class ViewController: UIViewController {
 		
 		mapView.frame = view.bounds
 	}
+  
+  
+  func showRouteOnMap(pickupCoordinate: CLLocationCoordinate2D, destinationCoordinate: CLLocationCoordinate2D) {
+
+    let sourcePlacemark = MKPlacemark(coordinate: pickupCoordinate, addressDictionary: nil)
+    let destinationPlacemark = MKPlacemark(coordinate: destinationCoordinate, addressDictionary: nil)
+
+    let sourceMapItem = MKMapItem(placemark: sourcePlacemark)
+    let destinationMapItem = MKMapItem(placemark: destinationPlacemark)
+
+    let sourceAnnotation = MKPointAnnotation()
+
+    if let location = sourcePlacemark.location {
+      sourceAnnotation.coordinate = location.coordinate
+    }
+
+    let destinationAnnotation = MKPointAnnotation()
+
+    if let location = destinationPlacemark.location {
+      destinationAnnotation.coordinate = location.coordinate
+    }
+
+    self.mapView.showAnnotations([sourceAnnotation,destinationAnnotation], animated: true )
+
+    let directionRequest = MKDirections.Request()
+    directionRequest.source = sourceMapItem
+    directionRequest.destination = destinationMapItem
+    directionRequest.transportType = .automobile
+
+    // Calculate the direction
+    let directions = MKDirections(request: directionRequest)
+
+    directions.calculate {
+      (response, error) -> Void in
+
+      guard let response = response else {
+        if let error = error {
+          print("Error: \(error)")
+        }
+        return
+      }
+
+      let route = response.routes[0]
+
+      self.mapView.addOverlay((route.polyline), level: MKOverlayLevel.aboveRoads)
+
+      let rect = route.polyline.boundingMapRect
+      self.mapView.setRegion(MKCoordinateRegion(rect), animated: true)
+    }
+  }
+
+  
+  func parseGeoJSON() -> [MKOverlay]{
+    guard let url = Bundle.main.url(forResource: "map", withExtension: "json") else {
+      fatalError("Unable to get GeoJSON")
+    }
+    
+    var geoJSON = [MKGeoJSONObject]()
+    do {
+      let data = try Data(contentsOf: url)
+      geoJSON = try MKGeoJSONDecoder().decode(data)
+    }
+    catch {
+      fatalError("Unable to decode geoJSON")
+    }
+    
+    var overlays = [MKOverlay]()
+    for item in geoJSON {
+      if let feature = item as? MKGeoJSONFeature {
+        for geo in feature.geometry {
+          if let polygon = geo as? MKPolygon {
+            overlays.append(polygon)
+          }
+        }
+      }
+    }
+    return overlays
+  }
+  
+  
+  func createPath(sourceLocation : CLLocationCoordinate2D, destinationLocation : CLLocationCoordinate2D) {
+    let sourcePlaceMark = MKPlacemark(coordinate: sourceLocation, addressDictionary: nil)
+    let destinationPlaceMark = MKPlacemark(coordinate: destinationLocation, addressDictionary: nil)
+          
+          
+    let sourceMapItem = MKMapItem(placemark: sourcePlaceMark)
+    let destinationItem = MKMapItem(placemark: destinationPlaceMark)
+          
+          
+    let sourceAnotation = MKPointAnnotation()
+    if let location = sourcePlaceMark.location {
+      sourceAnotation.coordinate = location.coordinate
+    }
+          
+    let destinationAnotation = MKPointAnnotation()
+    if let location = destinationPlaceMark.location {
+      destinationAnotation.coordinate = location.coordinate
+    }
+          
+    self.mapView.showAnnotations([sourceAnotation, destinationAnotation], animated: true)
+          
+          
+          
+    let directionRequest = MKDirections.Request()
+    directionRequest.source = sourceMapItem
+    directionRequest.destination = destinationItem
+    directionRequest.transportType = .automobile
+          
+    let direction = MKDirections(request: directionRequest)
+          
+          
+    direction.calculate { (response, error) in
+      guard let response = response else {
+        if let error = error {
+          print("ERROR FOUND : \(error.localizedDescription)")
+        }
+        return
+      }
+                
+      let route = response.routes[0]
+      self.mapView.addOverlay(route.polyline, level: MKOverlayLevel.aboveRoads)
+                
+      let rect = route.polyline.boundingMapRect
+                
+      self.mapView.setRegion(MKCoordinateRegion(rect), animated: true)
+              
+    }
+  }
 	
 	@objc func respondToMapTap(gr: UITapGestureRecognizer) {
 		//Show the coordinate of where the user tapped
